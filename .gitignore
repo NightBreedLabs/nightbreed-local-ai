@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.sqlite3
+private_profile.md
+*secret*
+.env*
+antigravity_complete_setup.md
+*.zip
+*.sha256
+.DS_Store
+docs/IMPORTED_TECH_CONTEXT.md
