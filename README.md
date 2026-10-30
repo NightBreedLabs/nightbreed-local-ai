@@ -93,7 +93,7 @@ The original text is copied to `~/.local/share/nbai/context/private_profile.md` 
 Semantic index also works on deliberately chosen code repositories, with a file count/size cap and exclusions for usual secrets, VCS, caches and dependencies. These exclusions are heuristics, not a guarantee that source files contain no secrets. A Git project is a natural index target:
 
 ```bash
-nbai index "$HOME/Projects/auto-epub-optimizer"
+nbai index "$HOME/nightbreedlabs/auto-epub-optimizer"
 nbai search 'Where does the EPUB optimization happen?'
 ```
 

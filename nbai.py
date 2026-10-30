@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
-VERSION = '1.0.0'
+VERSION = '1.0.1'
 BASE = os.environ.get('NBAI_OLLAMA_URL', 'http://127.0.0.1:11434').rstrip('/')
 DATA = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'nbai'
 DB = DATA / 'index.sqlite3'
@@ -67,7 +67,7 @@ def models():
 
 
 def local_names():
-    return {m.get('name', '') for m in models() if not m.get('name', '').endswith(':cloud')}
+    return {name for m in models() if (name := (m.get('name') or m.get('model') or '')) and not name.lower().endswith(':cloud')}
 
 
 def local_model(spec):
@@ -77,11 +77,33 @@ def local_model(spec):
     return model
 
 
-def chat(model, prompt, system='', num_ctx=None, temperature=None, keep_alive='5m', timeout=300):
-    model = local_model(model)
+def installed_model(spec):
+    """Resolve Ollama's implicit :latest tag against actual /api/tags names.
+
+    Keep an explicit version tag intact. Return the exact server-reported name
+    so indexing, lookup and model requests consistently use one identifier.
+    """
+    requested = local_model(spec)
     available = local_names()
-    if model not in available:
-        raise ValueError(f'Model {model!r} is not installed locally; available: {", ".join(sorted(available)) or "none"}. Use ollama pull {model}')
+    candidates = [requested]
+    if ':' not in requested:
+        candidates.append(requested + ':latest')
+    elif requested.endswith(':latest'):
+        candidates.append(requested[:-len(':latest')])
+    for candidate in candidates:
+        if candidate in available:
+            return candidate
+    present = ', '.join(sorted(available)) or '(none)'
+    raise ValueError(
+        f'Model {requested!r} not found on Ollama server {require_local()}. '
+        f'Server reports: {present}. Check `nbai status` and `ollama list`. '
+        'If they differ, verify the Ollama service address and model directory. '
+        'Download to the same server with `ollama pull MODEL` only if needed.'
+    )
+
+
+def chat(model, prompt, system='', num_ctx=None, temperature=None, keep_alive='5m', timeout=300):
+    model = installed_model(model)
     payload = {'model': model, 'messages': [], 'stream': False, 'keep_alive': keep_alive}
     if system:
         payload['messages'].append({'role': 'system', 'content': system})
@@ -220,9 +242,7 @@ def db_connect():
 
 
 def embed(texts, model):
-    model = local_model(model)
-    if model not in local_names():
-        raise ValueError(f'Embedding model {model} not installed. Install separately using `ollama pull {model}` (no automatic downloads).')
+    model = installed_model(model)
     data = api('/api/embed', {'model':model, 'input':texts, 'truncate':False, 'keep_alive':'2m'}, timeout=300)
     vec = data.get('embeddings', [])
     if len(vec) != len(texts):
@@ -252,9 +272,7 @@ def cmd_index(args):
         raise ValueError('Index path must be an existing directory')
     if root == Path.home().resolve() or root == Path('/'):
         raise ValueError('Index a specific project directory, not the entire home directory or root filesystem')
-    model = local_model(args.model)
-    if model not in local_names():
-        raise ValueError(f'Embedding model unavailable. Explicitly run `ollama pull {model}` first.')
+    model = installed_model(args.model)
     conn = db_connect()
     added=0; unchanged=0; skipped=0; count=0
     for base, dirs, files in os.walk(root, followlinks=False):
@@ -304,6 +322,7 @@ def cmd_index(args):
 def search_local(query, model='embeddinggemma', limit=5):
     if not DB.exists():
         return [{'error':'No index yet. Run `nbai index /path/to/your/project` after installing an embedding model.'}]
+    model = installed_model(model)
     v=embed([query],model)[0]
     magnitude=math.sqrt(sum(float(x)**2 for x in v)) or 1.0
     con=db_connect()
