@@ -66,3 +66,19 @@ Do not remove `~/.config/systemd/user/ollama.service` or the Homebrew Ollama bin
 - `gemma4:cloud`: remote model through Ollama; avoid sending sensitive content to it unless you deliberately choose that workflow.
 
 If the iGPU reports CPU-only or mixed allocation, don't chase marketing percentages. Confirm benchmark speed and system responsiveness. Increased VRAM reservations may take RAM from KDE/gaming while not significantly improving actual Ollama throughput. Cross-distro GPU packaging differs; no universal script should blindly install vendor ROCm drivers.
+
+## AMD iGPU: `ErrorDeviceLost` and compute ring timeouts
+
+**Symptom:** `decode() failed: vk::Queue::submit: ErrorDeviceLost` in Ollama logs, and `ring comp_* timeout` in the kernel log, sometimes followed by a full `GPU reset`. Because an iGPU also drives the display, this can freeze the desktop briefly.
+
+**Cause:** amdgpu treats a job as hung after its timeout, about 2 seconds by default. llama.cpp's Vulkan backend can bundle enough work into one submission to pass that on slower integrated GPUs. See [llama.cpp #21724](https://github.com/ggml-org/llama.cpp/issues/21724) and [ollama #17870](https://github.com/ollama/ollama/issues/17870).
+
+**Fix, in order of preference:**
+
+1. Add a systemd drop-in with `Environment="GGML_VK_MAX_NODES_PER_SUBMIT=1"`. Check the variable exists first: `strings "$(dirname "$(readlink -f "$(command -v ollama)")")/../lib/ollama/vulkan/libggml-vulkan.so" | grep GGML_VK_MAX_NODES`.
+2. Lower `num_batch` for chat models if failures continue. **Do not set it below the largest chunk on embedding models:** embedding needs each input in one batch, so inputs over the limit fail with `input (N tokens) is too large`, and some clients still report success.
+3. As a last resort, raise only the compute timeout with the kernel argument `amdgpu.lockup_timeout=2000,10000,2000,2000` (gfx, compute, sdma, video). This needs a reboot, and a real compute hang will take longer to clear.
+
+**Verify after bulk jobs:** check document or chunk counts, then `journalctl -b -k | grep 'GPU reset begin'` and `journalctl --user -u ollama | grep -E 'DeviceLost|too large'`. Exit codes alone are not enough.
+
+On a Radeon 680M with Ollama 0.40.11 and Mesa 26.2.4, step 1 with an embedding `num_batch` of 768 passed a 927-chunk rebuild and 5,000+ token prompts on five models, with no device loss.
