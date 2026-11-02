@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline integration tests with a fake local Ollama API. No model downloads."""
 import contextlib
+import importlib.util
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -109,6 +110,24 @@ class ToolkitTests(unittest.TestCase):
         self.assertGreater(len(lines[1]['result']['tools']),3)
         self.assertIn('Mock answer',lines[2]['result']['content'][0]['text'])
         self.assertTrue(lines[3]['result']['isError'])
+    def test_docs_tools_are_allowlisted_and_sourced(self):
+        spec=importlib.util.spec_from_file_location('nbai',APP)
+        nbai=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(nbai)
+        names=[t['name'] for t in nbai.mcp_tools()]
+        self.assertIn('local_docs_search',names)
+        self.assertIn('local_docs_ask',names)
+        with self.assertRaises(ValueError):
+            nbai.mcp_call('local_docs_search',{'query':'x','workspace':'private-other'})
+        fake={'results':[{'text':'t','score':0.9,'metadata':{'title':'doc.md','secret':'no'}}]}
+        original=nbai.docs_api
+        nbai.docs_api=lambda *a,**k:fake
+        try:
+            out=json.loads(nbai.mcp_call('local_docs_search',{'query':'x'})['content'][0]['text'])
+        finally:
+            nbai.docs_api=original
+        self.assertEqual(out,[{'source':'doc.md','score':0.9,'text':'t'}])
+
     def test_mcp_merge_preserves_existing(self):
         config=Path(self.tmp.name)/'mcp_config.json'
         config.write_text(json.dumps({'mcpServers':{'ollama':{'command':'existing'}}}))

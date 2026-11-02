@@ -51,6 +51,30 @@ nbai profile coding
 
 Everything above calls Ollama's **local loopback API**. Any model ending `:cloud` is blocked by this toolkit; it cannot unintentionally run your cloud-backed Gemma entry. The original `ollama` CLI remains available if you intentionally need cloud models. This toolkit deliberately does not connect to Antigravity's undocumented localhost auth bridge on port 32777.
 
+## Optional shared document library
+
+`local_docs_search` and `local_docs_ask` let any MCP client use the same [AnythingLLM](https://anythingllm.com/) library, so several assistants can share one set of reference documents and avoid cloud usage. Both talk only to a loopback AnythingLLM instance and only to workspaces in the `NBAI_DOCS_WORKSPACES` allowlist.
+
+- `local_docs_search` returns sourced passages (8 by default) and uses no chat model. Read all of them, because the best passage is often not ranked first.
+- `local_docs_ask` answers with a local model in a new session, so earlier answers cannot leak into its context. Local models can blend rules or cite the wrong section, so verify anything important with `local_docs_search`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NBAI_DOCS_URL` | `http://127.0.0.1:3001` | Loopback AnythingLLM URL |
+| `NBAI_DOCS_KEY_FILE` | `~/.local/share/anythingllm/agent-api.key` | Developer API key file, mode 600 |
+| `NBAI_DOCS_WORKSPACES` | `benefits-research` | Comma-separated workspace allowlist; set this to your own workspaces |
+| `NBAI_DOCS_IDLE_SECONDS` | `60` | Idle time before the service is stopped |
+
+Passages are visible to the MCP client, so keep private material out of allowlisted workspaces when the client is cloud-connected.
+
+## Load on demand
+
+NBAI is built to leave no AI workload resident, which suits machines also used for gaming.
+
+- `nbai ask` and the `local_*` model tools send `keep_alive: 0`, so a model unloads as soon as it answers.
+- The docs tools start a user service named `anythingllm.service` when needed and schedule a stop after `NBAI_DOCS_IDLE_SECONDS`, using `systemd-run --user`. Do not enable that service at boot.
+- Sandboxed clients without access to the user systemd bus cannot start the service; start it manually in that case.
+
 ## Add the optional Antigravity MCP server
 
 ```bash
@@ -60,7 +84,7 @@ nbai mcp-install
 
 This **merges a new server named `nightbreed-local-ai`**, preserving your existing `ollama`, `rea`, Gemini docs, data-agent-kit, and science servers. It creates a permission-restricted backup if the config already existed. Antigravity's global MCP config is `~/.gemini/config/mcp_config.json`, also accessible under **Agent panel → … → MCP Servers → Manage MCP Servers → View raw config**. Refresh MCP servers afterward. This command does *not* test the user's actual Antigravity version; test tools after refreshing.
 
-Available MCP tools: `local_fast`, `local_code`, `local_reason`, `local_models`, and `local_search`. Since you already have an `ollama` MCP server, you can skip the new server if it doesn't add useful functions. `local_search` is *disabled by default* because returning snippets to a cloud-hosted MCP client could expose private context. For another MCP client, configure the same stdio command, using a real absolute path:
+Available MCP tools: `local_fast`, `local_code`, `local_reason`, `local_models`, `local_search`, `local_docs_search`, and `local_docs_ask`. The two docs tools read allowlisted AnythingLLM workspaces (`NBAI_DOCS_WORKSPACES`) on loopback, so only put material in those workspaces that MCP clients may see. Since you already have an `ollama` MCP server, you can skip the new server if it doesn't add useful functions. `local_search` is *disabled by default* because returning snippets to a cloud-hosted MCP client could expose private context. For another MCP client, configure the same stdio command, using a real absolute path:
 
 ```json
 {
