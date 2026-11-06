@@ -59,7 +59,8 @@ Do not remove `~/.config/systemd/user/ollama.service` or the Homebrew Ollama bin
 
 ## Memory and model strategy
 
-- `llama3.2:3b`: fast, lower-memory general text.
+- `hermes3:8b`: default `fast` role (since 2026-11-05; llama3.2:3b is no longer installed). Override with `NBAI_FAST_MODEL`.
+- `llama3.2:3b`: smaller, lower-memory general text if re-pulled.
 - `qwen2.5-coder:7b`: first choice for shell and code tasks; measure 4096 vs 8192 context.
 - `deepseek-r1:8b`: reasoning tasks; expect more latency and model overhead.
 - `embeddinggemma`: optional purpose-built local embedding model for retrieval, not text conversation. Download only if you need semantic search: `ollama pull embeddinggemma`.
