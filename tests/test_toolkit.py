@@ -27,7 +27,7 @@ class FakeOllama(BaseHTTPRequestHandler):
         self.wfile.write(raw)
     def do_GET(self):
         if self.path=='/api/tags':
-            self.body(200,{'models':[{'name':'llama3.2:3b','size':2000000000},{'name':'qwen2.5-coder:7b','size':4700000000},{'name':'deepseek-r1:8b','size':5200000000},{'name':'embeddinggemma','size':120000000},{'name':'gemma4:cloud','size':1}]})
+            self.body(200,{'models':[{'name':'llama3.2:3b','size':2000000000},{'name':'hermes3:8b','size':4700000000},{'name':'qwen2.5-coder:7b','size':4700000000},{'name':'deepseek-r1:8b','size':5200000000},{'name':'embeddinggemma','size':120000000},{'name':'gemma4:cloud','size':1}]})
         elif self.path=='/api/version': self.body(200,{'version':'0.40.11-test'})
         elif self.path=='/api/ps': self.body(200,{'models':[]})
         else: self.body(404,{'error':'Unknown'})

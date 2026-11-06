@@ -29,7 +29,7 @@ DOCS_IDLE_SECONDS = int(os.environ.get('NBAI_DOCS_IDLE_SECONDS', '60'))
 DATA = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'nbai'
 DB = DATA / 'index.sqlite3'
 ROLES = {
-    'fast': os.environ.get('NBAI_FAST_MODEL', 'llama3.2:3b'),
+    'fast': os.environ.get('NBAI_FAST_MODEL', 'hermes3:8b'),
     'code': os.environ.get('NBAI_CODE_MODEL', 'qwen2.5-coder:7b'),
     'reason': os.environ.get('NBAI_REASON_MODEL', 'deepseek-r1:8b'),
 }
